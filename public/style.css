@@ -1,0 +1,140 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background: #1a1a2e;
+  color: #eee;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+#header {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 12px 20px;
+  background: #16213e;
+  border-bottom: 2px solid #0f3460;
+}
+
+#header h1 {
+  font-size: 18px;
+  color: #e94560;
+}
+
+#status {
+  font-size: 13px;
+  padding: 3px 10px;
+  border-radius: 12px;
+  background: #333;
+}
+
+#status.connected {
+  background: #1b4332;
+  color: #95d5b2;
+}
+
+#status.error {
+  background: #5c1a1a;
+  color: #f8a0a0;
+}
+
+#count {
+  font-size: 13px;
+  color: #888;
+  margin-left: auto;
+}
+
+#container {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+#map {
+  flex: 1;
+}
+
+#sidebar {
+  width: 320px;
+  background: #16213e;
+  border-left: 2px solid #0f3460;
+  overflow-y: auto;
+  padding: 12px;
+}
+
+#sidebar h2 {
+  font-size: 14px;
+  color: #888;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 10px;
+}
+
+#incident-list {
+  list-style: none;
+}
+
+#incident-list li {
+  padding: 10px;
+  margin-bottom: 8px;
+  background: #1a1a2e;
+  border-radius: 6px;
+  border-left: 3px solid #e94560;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+#incident-list li:hover {
+  background: #222244;
+}
+
+#incident-list li.type-fire { border-left-color: #e94560; }
+#incident-list li.type-medical { border-left-color: #4895ef; }
+#incident-list li.type-traffic { border-left-color: #f9c74f; }
+#incident-list li.type-alarm { border-left-color: #f8961e; }
+#incident-list li.type-other { border-left-color: #43aa8b; }
+
+.incident-type {
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 11px;
+  margin-bottom: 4px;
+}
+
+.incident-location {
+  margin-bottom: 4px;
+}
+
+.incident-units {
+  color: #888;
+  font-size: 12px;
+}
+
+.incident-time {
+  color: #666;
+  font-size: 11px;
+  margin-top: 4px;
+}
+
+/* Leaflet popup overrides */
+.leaflet-popup-content-wrapper {
+  background: #16213e;
+  color: #eee;
+  border-radius: 6px;
+}
+
+.leaflet-popup-tip {
+  background: #16213e;
+}
+
+.leaflet-popup-content {
+  font-size: 13px;
+  line-height: 1.4;
+}
