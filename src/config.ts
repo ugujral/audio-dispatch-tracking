@@ -11,8 +11,42 @@ function requireEnv(key: string): string {
   return val;
 }
 
+/**
+ * Extracts the feed ID from a Broadcastify CDN URL.
+ * e.g. "https://broadcastify.cdnstream1.com/26569" → "26569"
+ */
+function extractFeedId(streamUrl: string): string | null {
+  const match = streamUrl.match(/broadcastify\.cdnstream\d*\.com\/(\d+)/);
+  return match ? match[1] : null;
+}
+
+/**
+ * Fetches the stream name from Broadcastify's web player page title.
+ * Returns empty string if fetch fails or URL is not a Broadcastify feed.
+ */
+export async function fetchStreamName(streamUrl: string): Promise<string> {
+  const feedId = extractFeedId(streamUrl);
+  if (!feedId) return "";
+
+  try {
+    const resp = await fetch(`https://www.broadcastify.com/webPlayer/${feedId}`, {
+      headers: { "User-Agent": "Mozilla/5.0" },
+      signal: AbortSignal.timeout(10_000),
+    });
+    const html = await resp.text();
+    const match = html.match(/<title>\s*(.+?)\s*<\/title>/i);
+    if (match) {
+      return match[1].replace(/\s*Live Audio Feed\s*$/i, "").trim();
+    }
+  } catch {
+    // ignore — name is optional
+  }
+  return "";
+}
+
 export const config = {
   streamUrl: requireEnv("STREAM_URL"),
+  streamName: process.env.STREAM_NAME || "",
   ollamaUrl: process.env.OLLAMA_URL || "http://localhost:11434",
   ollamaModel: process.env.OLLAMA_MODEL || "llama3.1:8b",
   whisperModel: process.env.WHISPER_MODEL || "base.en",

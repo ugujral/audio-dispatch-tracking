@@ -19,6 +19,10 @@ export class SSEManager {
       this.broadcast(incident);
     });
 
+    store.on("remove-incident", (id: string) => {
+      this.broadcastRemoval(id);
+    });
+
     pipeline.on("state-change", (state: string) => {
       this.broadcastState(state);
     });
@@ -57,6 +61,17 @@ export class SSEManager {
     for (const client of this.clients) {
       try {
         client.write(data);
+      } catch {
+        this.clients.delete(client);
+      }
+    }
+  }
+
+  private broadcastRemoval(id: string): void {
+    const msg = `event: remove-incident\ndata: ${JSON.stringify({ id })}\n\n`;
+    for (const client of this.clients) {
+      try {
+        client.write(msg);
       } catch {
         this.clients.delete(client);
       }

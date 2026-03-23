@@ -4,7 +4,7 @@ import { fileURLToPath } from "url";
 import { IncidentStore } from "../store/incident-store.js";
 import { PipelineController } from "../pipeline/pipeline-controller.js";
 import { SSEManager } from "./sse.js";
-import { config } from "../config.js";
+import { config, fetchStreamName } from "../config.js";
 import { logger } from "../utils/logger.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -16,12 +16,32 @@ export function startServer(
   const app = express();
   const sse = new SSEManager(store, pipeline);
 
+  // Auto-fetch stream name from Broadcastify if not set
+  if (!config.streamName) {
+    fetchStreamName(config.streamUrl).then((name) => {
+      if (name) {
+        config.streamName = name;
+        logger.info(`Stream name: ${name}`);
+      }
+    });
+  }
+
   // Serve static frontend files
   app.use(express.static(path.join(__dirname, "../../public")));
 
   // REST: get all incidents
   app.get("/api/incidents", (_req, res) => {
     res.json(store.getAll());
+  });
+
+  // REST: delete an incident
+  app.delete("/api/incidents/:id", (req, res) => {
+    const removed = store.removeIncident(req.params.id);
+    if (removed) {
+      res.json({ deleted: true });
+    } else {
+      res.status(404).json({ error: "Incident not found" });
+    }
   });
 
   // REST: get map config (so frontend knows where to center)
@@ -31,6 +51,7 @@ export function startServer(
       mapCenterLng: config.mapCenterLng,
       mapZoom: config.mapZoom,
       streamUrl: config.streamUrl,
+      streamName: config.streamName,
     });
   });
 

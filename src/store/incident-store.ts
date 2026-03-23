@@ -21,6 +21,14 @@ export class IncidentStore extends EventEmitter {
     return stored;
   }
 
+  removeIncident(id: string): boolean {
+    const idx = this.incidents.findIndex((i) => i.id === id);
+    if (idx === -1) return false;
+    this.incidents.splice(idx, 1);
+    this.emit("remove-incident", id);
+    return true;
+  }
+
   getAll(): StoredIncident[] {
     return [...this.incidents];
   }

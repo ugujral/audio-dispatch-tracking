@@ -22,21 +22,44 @@ export async function geocodeIncident(
     return { ...incident, ...coords };
   }
 
-  // If it looks like an intersection, try each street separately and average
+  // If it looks like an intersection, try structured queries before averaging
   const streets = splitIntersection(incident.location);
   if (streets) {
     const [a, b] = streets;
-    const coordsA = await tryGeocode(a);
-    const coordsB = await tryGeocode(b);
-    if (coordsA && coordsB) {
-      const lat = (coordsA.lat + coordsB.lat) / 2;
-      const lng = (coordsA.lng + coordsB.lng) / 2;
+
+    // Try "A Street and B Street, City, State" as a single query
+    const structuredQuery = `${ensureStreetSuffix(a)} and ${ensureStreetSuffix(b)}`;
+    const structuredCoords = await tryGeocode(structuredQuery);
+    if (structuredCoords) {
       logger.info(
-        `Geocoded intersection "${incident.location}" → (${lat}, ${lng})`
+        `Geocoded intersection "${incident.location}" → (${structuredCoords.lat}, ${structuredCoords.lng})`
       );
-      return { ...incident, lat, lng };
+      return { ...incident, ...structuredCoords };
     }
-    // Fall back to whichever street resolved
+
+    // Fall back to geocoding each street with "Street" suffix and averaging
+    const coordsA = await tryGeocode(ensureStreetSuffix(a));
+    const coordsB = await tryGeocode(ensureStreetSuffix(b));
+    if (coordsA && coordsB) {
+      // Only average if both results are in the same general area (within ~10km)
+      const distKm = Math.sqrt(
+        Math.pow((coordsA.lat - coordsB.lat) * 111, 2) +
+        Math.pow((coordsA.lng - coordsB.lng) * 85, 2)
+      );
+      if (distKm < 10) {
+        const lat = (coordsA.lat + coordsB.lat) / 2;
+        const lng = (coordsA.lng + coordsB.lng) / 2;
+        logger.info(
+          `Geocoded intersection "${incident.location}" → (${lat}, ${lng})`
+        );
+        return { ...incident, lat, lng };
+      }
+      // Results too far apart — use the first street only
+      logger.warn(
+        `Intersection streets geocoded ${distKm.toFixed(1)}km apart, using first street only`
+      );
+      return { ...incident, ...coordsA };
+    }
     const fallback = coordsA || coordsB;
     if (fallback) {
       return { ...incident, ...fallback };
@@ -63,10 +86,25 @@ async function tryGeocode(
   }
 }
 
+/**
+ * Adds "Street" suffix to bare street names like "8th" or "Washington"
+ * so geocoding doesn't match a city/state name.
+ */
+function ensureStreetSuffix(name: string): string {
+  const hasSuffix = /\b(st|street|ave|avenue|blvd|boulevard|dr|drive|rd|road|way|ln|lane|ct|court|pl|place|pkwy|parkway|cir|circle)\b/i;
+  if (hasSuffix.test(name)) return name;
+  return name + " Street";
+}
+
 function splitIntersection(location: string): [string, string] | null {
+  // Strip common prefixes like "Intersection of", "corner of"
+  let cleaned = location
+    .replace(/^(intersection of|corner of|cross of)\s+/i, "")
+    .trim();
+
   const patterns = [/ and /i, / & /, / at /i, /\//];
   for (const p of patterns) {
-    const parts = location.split(p);
+    const parts = cleaned.split(p);
     if (parts.length === 2 && parts[0].trim() && parts[1].trim()) {
       return [parts[0].trim(), parts[1].trim()];
     }

@@ -9,6 +9,11 @@
     audio.src = cfg.streamUrl;
   }
 
+  // Stream name label
+  if (cfg.streamName) {
+    document.getElementById("stream-name").textContent = cfg.streamName;
+  }
+
   // Pipeline status indicator
   var pipelineEl = document.getElementById("pipeline-status");
 
@@ -18,14 +23,22 @@
   }
 
   // Sync audio play/pause with backend pipeline
+  // Track user intent to avoid stopping on buffer stalls
+  var userClickedPlay = false;
+
   audio.addEventListener("play", function () {
+    userClickedPlay = true;
     fetch("/api/stream/start", { method: "POST" })
       .catch(function (err) { console.error("Failed to start stream:", err); });
   });
 
   audio.addEventListener("pause", function () {
-    fetch("/api/stream/stop", { method: "POST" })
-      .catch(function (err) { console.error("Failed to stop stream:", err); });
+    // Only stop pipeline if user intentionally paused (not a buffer stall)
+    if (userClickedPlay) {
+      userClickedPlay = false;
+      fetch("/api/stream/stop", { method: "POST" })
+        .catch(function (err) { console.error("Failed to stop stream:", err); });
+    }
   });
 
   // Initialize Leaflet map
@@ -68,6 +81,23 @@
   function formatTime(ts) {
     var d = new Date(ts);
     return isNaN(d.getTime()) ? ts || "Unknown" : d.toLocaleTimeString();
+  }
+
+  var incidentMarkers = {};
+
+  function removeIncident(id) {
+    // Remove marker from map
+    if (incidentMarkers[id]) {
+      map.removeLayer(incidentMarkers[id]);
+      delete incidentMarkers[id];
+    }
+    // Remove from sidebar
+    var li = document.querySelector('[data-incident-id="' + id + '"]');
+    if (li) li.remove();
+    // Update count
+    var list = document.getElementById("incident-list");
+    var count = list.children.length;
+    document.getElementById("count").textContent = count + " incident" + (count !== 1 ? "s" : "");
   }
 
   function addIncident(incident) {
@@ -113,11 +143,26 @@
       li.appendChild(div);
     });
 
+    // Delete button
+    var deleteBtn = document.createElement("button");
+    deleteBtn.className = "incident-delete";
+    deleteBtn.textContent = "\u00d7";
+    deleteBtn.title = "Remove incident";
+    deleteBtn.addEventListener("click", function (e) {
+      e.stopPropagation();
+      fetch("/api/incidents/" + incident.id, { method: "DELETE" });
+    });
+    li.appendChild(deleteBtn);
+
     li.addEventListener("click", function () {
       map.setView([incident.lat, incident.lng], 15);
       marker.openPopup();
     });
+    li.dataset.incidentId = incident.id;
     list.prepend(li);
+
+    // Track marker for removal
+    incidentMarkers[incident.id] = marker;
 
     // Update count
     var count = list.children.length;
@@ -150,6 +195,11 @@
       console.error("Failed to parse SSE message:", err);
     }
   };
+
+  evtSource.addEventListener("remove-incident", function (event) {
+    var data = JSON.parse(event.data);
+    removeIncident(data.id);
+  });
 
   evtSource.addEventListener("pipeline-status", function (event) {
     var data = JSON.parse(event.data);

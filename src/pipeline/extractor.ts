@@ -57,15 +57,18 @@ General:
 - Code 4 = no further assistance needed
 
 IMPORTANT RULES:
-- Always use full names, never abbreviations. For example: "Motor Vehicle Collision" not "MVC", "Burglary" not "459", "Robbery" not "211".
-- For units: use the exact unit designator from the audio (e.g., "1-Adam-12", "2-Lincoln-30"). Do NOT guess or invent unit names. If no unit is mentioned, use an empty array.
-- For timestamp: use "now" if no specific time is mentioned. Do NOT invent a time.
-- Only extract incidents where you can clearly identify a location. If the location is unclear, respond with {"actionable": false}.
+- Extract any incident where you can identify BOTH a location AND an incident type. This includes new dispatches, active incidents being discussed, and ongoing situations.
+- Do NOT extract: unit clearances (Code 4, 10-8, "clear"), acknowledgments ("copy", "10-4"), radio checks, or unintelligible audio.
+- Always use full names, never abbreviations. For example: "Motor Vehicle Collision" not "MVC", "Burglary" not "459", "Robbery" not "211", "Battery" not "242".
+- The location MUST include a street address, intersection, or well-known landmark/building name with enough detail to geocode it. A school name like "Wilson Middle School" is acceptable. A lone street name like "Washington" is NOT.
+- The incidentType MUST be a specific type (e.g., "Burglary", "Traffic Collision", "Domestic Dispute", "Battery", "Welfare Check"). Never use "Unknown" or "Miscellaneous".
+- For units: use the exact designator from the audio. If none mentioned, use an empty array.
+- For timestamp: always use "now".
 
-You must respond with JSON. If the transcription contains an actionable dispatch, respond with:
+You must respond with JSON. If the transcription contains an incident with a clear location and type, respond with:
 {"actionable": true, "location": "...", "incidentType": "...", "units": ["..."], "timestamp": "now"}
 
-If the transcription does NOT contain an actionable dispatch (just chatter, acknowledgments, or unintelligible audio), respond with:
+Otherwise respond with:
 {"actionable": false}`;
 
 /**
