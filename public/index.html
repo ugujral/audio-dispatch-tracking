@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Dispatch Tracker</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚨</text></svg>">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha384-sHL9NAb7lN7rfvG5lfHpm643Xkcjzp4jFvuavGOndn6pjVqS6ny56CAt3nsEVT4H" crossorigin="anonymous" />
   <link rel="stylesheet" href="style.css" />
 </head>
@@ -12,6 +13,7 @@
     <h1>Dispatch Tracker</h1>
     <span id="status">Connecting...</span>
     <audio id="stream-audio" controls preload="none"></audio>
+    <span id="pipeline-status" class="idle">Idle</span>
     <span id="count">0 incidents</span>
   </div>
   <div id="container">

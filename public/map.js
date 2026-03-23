@@ -9,8 +9,27 @@
     audio.src = cfg.streamUrl;
   }
 
+  // Pipeline status indicator
+  var pipelineEl = document.getElementById("pipeline-status");
+
+  function updatePipelineIndicator(state) {
+    pipelineEl.textContent = state === "processing" ? "Processing" : "Idle";
+    pipelineEl.className = state === "processing" ? "processing" : "idle";
+  }
+
+  // Sync audio play/pause with backend pipeline
+  audio.addEventListener("play", function () {
+    fetch("/api/stream/start", { method: "POST" })
+      .catch(function (err) { console.error("Failed to start stream:", err); });
+  });
+
+  audio.addEventListener("pause", function () {
+    fetch("/api/stream/stop", { method: "POST" })
+      .catch(function (err) { console.error("Failed to stop stream:", err); });
+  });
+
   // Initialize Leaflet map
-  const map = L.map("map").setView([cfg.mapCenterLat, cfg.mapCenterLng], cfg.mapZoom);
+  const map = L.map("map", { minZoom: 3, maxBoundsViscosity: 1.0 }).setView([cfg.mapCenterLat, cfg.mapCenterLng], cfg.mapZoom);
 
   L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
@@ -47,7 +66,8 @@
   }
 
   function formatTime(ts) {
-    return new Date(ts).toLocaleTimeString();
+    var d = new Date(ts);
+    return isNaN(d.getTime()) ? ts || "Unknown" : d.toLocaleTimeString();
   }
 
   function addIncident(incident) {
@@ -60,19 +80,19 @@
 
     // Build popup using safe DOM construction
     var popupEl = document.createElement("div");
-    var strong = document.createElement("strong");
-    strong.textContent = incident.incidentType;
-    popupEl.appendChild(strong);
-    popupEl.appendChild(document.createElement("br"));
-    popupEl.appendChild(document.createTextNode(incident.location));
-    popupEl.appendChild(document.createElement("br"));
-    var em = document.createElement("em");
-    em.textContent = "Units: " + incident.units.join(", ");
-    popupEl.appendChild(em);
-    popupEl.appendChild(document.createElement("br"));
-    var small = document.createElement("small");
-    small.textContent = formatTime(incident.timestamp);
-    popupEl.appendChild(small);
+    var lines = [
+      { label: "Incident", value: incident.incidentType },
+      { label: "Location", value: incident.location },
+      { label: "Units", value: incident.units.join(", ") },
+      { label: "Time", value: formatTime(incident.timestamp) },
+    ];
+    lines.forEach(function (line, i) {
+      var b = document.createElement("strong");
+      b.textContent = line.label + ": ";
+      popupEl.appendChild(b);
+      popupEl.appendChild(document.createTextNode(line.value));
+      if (i < lines.length - 1) popupEl.appendChild(document.createElement("br"));
+    });
     marker.bindPopup(popupEl);
 
     // Add to sidebar list using safe DOM methods
@@ -80,25 +100,18 @@
     var li = document.createElement("li");
     li.className = "type-" + typeClass;
 
-    var typeDiv = document.createElement("div");
-    typeDiv.className = "incident-type";
-    typeDiv.textContent = incident.incidentType;
-    li.appendChild(typeDiv);
-
-    var locDiv = document.createElement("div");
-    locDiv.className = "incident-location";
-    locDiv.textContent = incident.location;
-    li.appendChild(locDiv);
-
-    var unitsDiv = document.createElement("div");
-    unitsDiv.className = "incident-units";
-    unitsDiv.textContent = incident.units.join(", ");
-    li.appendChild(unitsDiv);
-
-    var timeDiv = document.createElement("div");
-    timeDiv.className = "incident-time";
-    timeDiv.textContent = formatTime(incident.timestamp);
-    li.appendChild(timeDiv);
+    var fields = [
+      { cls: "incident-type", label: "Incident", value: incident.incidentType },
+      { cls: "incident-location", label: "Location", value: incident.location },
+      { cls: "incident-units", label: "Units", value: incident.units.join(", ") },
+      { cls: "incident-time", label: "Time", value: formatTime(incident.timestamp) },
+    ];
+    fields.forEach(function (f) {
+      var div = document.createElement("div");
+      div.className = f.cls;
+      div.textContent = f.label + ": " + f.value;
+      li.appendChild(div);
+    });
 
     li.addEventListener("click", function () {
       map.setView([incident.lat, incident.lng], 15);
@@ -137,6 +150,11 @@
       console.error("Failed to parse SSE message:", err);
     }
   };
+
+  evtSource.addEventListener("pipeline-status", function (event) {
+    var data = JSON.parse(event.data);
+    updatePipelineIndicator(data.state);
+  });
 
   evtSource.onerror = function () {
     statusEl.textContent = "Reconnecting...";

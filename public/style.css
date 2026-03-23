@@ -49,6 +49,25 @@ body {
   filter: invert(1) hue-rotate(180deg);
 }
 
+#pipeline-status {
+  font-size: 13px;
+  padding: 3px 10px;
+  border-radius: 12px;
+  background: #333;
+  color: #888;
+}
+
+#pipeline-status.processing {
+  background: #1b4332;
+  color: #95d5b2;
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
 #count {
   font-size: 13px;
   color: #888;

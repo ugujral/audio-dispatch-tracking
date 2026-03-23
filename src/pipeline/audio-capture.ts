@@ -12,21 +12,24 @@ const RECONNECT_DELAY = 30_000; // ms
 /**
  * Yields 10-second WAV file paths as ffmpeg captures them from the stream.
  * Automatically reconnects if the stream drops.
+ * Stops cleanly when the AbortSignal is triggered.
  */
 export async function* captureAudioChunks(
-  streamUrl: string
+  streamUrl: string,
+  signal?: AbortSignal
 ): AsyncGenerator<RawChunk> {
   const chunkDir = path.join(os.tmpdir(), "dispatch-chunks");
   await fs.mkdir(chunkDir, { recursive: true });
 
   let sequenceNum = 0;
 
-  while (true) {
+  while (!signal?.aborted) {
     try {
-      yield* captureSession(streamUrl, chunkDir, sequenceNum);
+      yield* captureSession(streamUrl, chunkDir, sequenceNum, signal);
     } catch (err) {
+      if (signal?.aborted) break;
       logger.error("Stream capture failed, reconnecting...", err);
-      await sleep(RECONNECT_DELAY);
+      await abortableSleep(RECONNECT_DELAY, signal);
     }
     // Increment sequence to avoid filename collisions after reconnect
     sequenceNum += 10000;
@@ -36,7 +39,8 @@ export async function* captureAudioChunks(
 async function* captureSession(
   streamUrl: string,
   chunkDir: string,
-  startSeq: number
+  startSeq: number,
+  signal?: AbortSignal
 ): AsyncGenerator<RawChunk> {
   const pattern = path.join(chunkDir, `chunk_${startSeq}_%04d.wav`);
 
@@ -55,6 +59,14 @@ async function* captureSession(
 
   logger.info(`ffmpeg started (PID ${ffmpeg.pid}), capturing from ${streamUrl}`);
 
+  // Kill ffmpeg if abort signal fires
+  const onAbort = () => {
+    if (ffmpeg.exitCode === null) {
+      ffmpeg.kill("SIGTERM");
+    }
+  };
+  signal?.addEventListener("abort", onAbort, { once: true });
+
   // Track stderr for debugging
   let stderrBuf = "";
   ffmpeg.stderr?.on("data", (data: Buffer) => {
@@ -71,12 +83,14 @@ async function* captureSession(
   }
 
   try {
-    while (true) {
+    while (!signal?.aborted) {
       // Check if ffmpeg has exited
       const exited = await Promise.race([
         exitPromise.then(() => true as const),
-        sleep(2000).then(() => false as const),
+        abortableSleep(2000, signal).then(() => false as const),
       ]);
+
+      if (signal?.aborted) break;
 
       // Scan directory for new chunk files
       const files = (await fs.readdir(chunkDir))
@@ -120,6 +134,7 @@ async function* captureSession(
       }
     }
   } finally {
+    signal?.removeEventListener("abort", onAbort);
     // Clean up ffmpeg if still running
     if (ffmpeg.exitCode === null) {
       ffmpeg.kill("SIGTERM");
@@ -133,6 +148,20 @@ function onExit(proc: ChildProcess): Promise<number | null> {
   });
 }
 
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+function abortableSleep(ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise((resolve) => {
+    if (signal?.aborted) {
+      resolve();
+      return;
+    }
+    const timer = setTimeout(resolve, ms);
+    signal?.addEventListener(
+      "abort",
+      () => {
+        clearTimeout(timer);
+        resolve();
+      },
+      { once: true }
+    );
+  });
 }
