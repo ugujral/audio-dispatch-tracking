@@ -41,7 +41,11 @@ export class SSEManager {
   private broadcast(incident: StoredIncident): void {
     const data = `data: ${JSON.stringify(incident)}\n\n`;
     for (const client of this.clients) {
-      client.write(data);
+      try {
+        client.write(data);
+      } catch {
+        this.clients.delete(client);
+      }
     }
   }
 }

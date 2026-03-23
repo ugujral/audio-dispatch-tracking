@@ -3,6 +3,12 @@
   const configResp = await fetch("/api/config");
   const cfg = await configResp.json();
 
+  // Set up audio player with stream URL
+  var audio = document.getElementById("stream-audio");
+  if (cfg.streamUrl) {
+    audio.src = cfg.streamUrl;
+  }
+
   // Initialize Leaflet map
   const map = L.map("map").setView([cfg.mapCenterLat, cfg.mapCenterLng], cfg.mapZoom);
 
@@ -41,17 +47,7 @@
   }
 
   function formatTime(ts) {
-    try {
-      return new Date(ts).toLocaleTimeString();
-    } catch {
-      return ts;
-    }
-  }
-
-  function escapeHtml(str) {
-    var div = document.createElement("div");
-    div.textContent = str;
-    return div.textContent;
+    return new Date(ts).toLocaleTimeString();
   }
 
   function addIncident(incident) {

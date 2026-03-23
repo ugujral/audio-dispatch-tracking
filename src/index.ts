@@ -17,6 +17,14 @@ async function main() {
   // Start the web server (map frontend + SSE)
   startServer(store);
 
+  // Graceful shutdown
+  const shutdown = () => {
+    logger.info("Shutting down...");
+    process.exit(0);
+  };
+  process.on("SIGINT", shutdown);
+  process.on("SIGTERM", shutdown);
+
   // Main pipeline loop: audio → transcribe → extract → geocode → store
   logger.info("Starting audio capture pipeline...");
 
@@ -26,7 +34,7 @@ async function main() {
       const transcription = await transcribe(chunk);
       if (!transcription) continue;
 
-      // Stage 2: Extract incident data via Claude
+      // Stage 2: Extract incident data via Ollama
       const extracted = await extractIncident(transcription);
       if (!extracted) continue;
 

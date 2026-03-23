@@ -26,6 +26,7 @@ export function startServer(store: IncidentStore): void {
       mapCenterLat: config.mapCenterLat,
       mapCenterLng: config.mapCenterLng,
       mapZoom: config.mapZoom,
+      streamUrl: config.streamUrl,
     });
   });
 

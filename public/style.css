@@ -44,6 +44,11 @@ body {
   color: #f8a0a0;
 }
 
+#stream-audio {
+  height: 32px;
+  filter: invert(1) hue-rotate(180deg);
+}
+
 #count {
   font-size: 13px;
   color: #888;

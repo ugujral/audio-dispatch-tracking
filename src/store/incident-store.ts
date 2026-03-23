@@ -2,6 +2,8 @@ import { EventEmitter } from "events";
 import { v4 as uuidv4 } from "uuid";
 import { GeocodedIncident, StoredIncident } from "../pipeline/types.js";
 
+const MAX_INCIDENTS = 1000;
+
 export class IncidentStore extends EventEmitter {
   private incidents: StoredIncident[] = [];
 
@@ -12,6 +14,9 @@ export class IncidentStore extends EventEmitter {
       createdAt: new Date().toISOString(),
     };
     this.incidents.push(stored);
+    if (this.incidents.length > MAX_INCIDENTS) {
+      this.incidents = this.incidents.slice(-MAX_INCIDENTS);
+    }
     this.emit("new-incident", stored);
     return stored;
   }
@@ -20,7 +25,4 @@ export class IncidentStore extends EventEmitter {
     return [...this.incidents];
   }
 
-  getRecent(count: number = 50): StoredIncident[] {
-    return this.incidents.slice(-count);
-  }
 }

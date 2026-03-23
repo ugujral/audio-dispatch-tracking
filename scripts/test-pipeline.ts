@@ -6,7 +6,6 @@
  *   npx tsx scripts/test-pipeline.ts <path-to-wav>
  *   npx tsx scripts/test-pipeline.ts --text "Engine 12, Ladder 5, respond to 1200 block of Main Street for a structure fire"
  */
-import { config } from "../src/config.js";
 import { transcribe } from "../src/pipeline/transcriber.js";
 import { extractIncident } from "../src/pipeline/extractor.js";
 import { geocodeIncident } from "../src/pipeline/geocoder.js";

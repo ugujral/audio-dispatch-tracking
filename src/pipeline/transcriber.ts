@@ -34,11 +34,17 @@ export async function transcribe(
     logger.error(`Transcription failed for chunk ${chunk.sequenceNum}`, err);
     return null;
   } finally {
-    // Clean up WAV file to avoid disk bloat
+    // Clean up WAV file and Whisper's .txt output to avoid disk bloat
     try {
       await fs.unlink(chunk.filePath);
     } catch {
       // ignore cleanup errors
+    }
+    try {
+      const txtPath = chunk.filePath.replace(/\.wav$/, ".txt");
+      await fs.unlink(txtPath);
+    } catch {
+      // ignore — .txt may not exist if Whisper failed
     }
   }
 }

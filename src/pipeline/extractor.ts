@@ -58,6 +58,7 @@ async function callOllama(text: string): Promise<ExtractedIncident | null> {
   const response = await fetch(`${config.ollamaUrl}/api/chat`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
+    signal: AbortSignal.timeout(60_000),
     body: JSON.stringify({
       model: config.ollamaModel,
       messages: [
@@ -76,24 +77,37 @@ async function callOllama(text: string): Promise<ExtractedIncident | null> {
     throw new Error(`Ollama request failed: ${response.status} ${response.statusText}`);
   }
 
-  const data = (await response.json()) as { message: { content: string } };
-  const parsed = JSON.parse(data.message.content);
+  const data = await response.json();
+  if (!data?.message?.content) {
+    throw new Error("Ollama returned unexpected response structure");
+  }
+
+  let parsed: Record<string, unknown>;
+  try {
+    parsed = JSON.parse(data.message.content);
+  } catch {
+    throw new Error(`Ollama returned invalid JSON: ${data.message.content.slice(0, 200)}`);
+  }
 
   if (!parsed.actionable) {
     logger.debug("No actionable dispatch found in transcription");
     return null;
   }
 
+  if (typeof parsed.location !== "string" || typeof parsed.incidentType !== "string") {
+    throw new Error("Ollama response missing required fields (location, incidentType)");
+  }
+
   // Normalize timestamp
   const timestamp =
     parsed.timestamp === "now" || !parsed.timestamp
       ? new Date().toISOString()
-      : parsed.timestamp;
+      : String(parsed.timestamp);
 
   return {
     location: parsed.location,
     incidentType: parsed.incidentType,
-    units: parsed.units || [],
+    units: Array.isArray(parsed.units) ? parsed.units.map(String) : [],
     timestamp,
     rawTranscription: text,
   };
