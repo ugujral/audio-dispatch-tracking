@@ -12,7 +12,6 @@ export interface Transcription {
 export interface ExtractedIncident {
   location: string;
   incidentType: string;
-  units: string[];
   timestamp: string;
   rawTranscription: string;
 }

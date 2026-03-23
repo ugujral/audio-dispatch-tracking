@@ -59,12 +59,17 @@ export class PipelineController extends EventEmitter {
         const extracted = await extractIncident(transcription);
         if (!extracted) continue;
 
-        const geocoded = await geocodeIncident(extracted);
+        let geocoded = await geocodeIncident(extracted);
         if (!geocoded) {
+          // Use map center as fallback so the incident still appears in the sidebar
           logger.warn(
-            `Could not geocode "${extracted.location}" — incident skipped`
+            `Could not geocode "${extracted.location}" — using map center as fallback`
           );
-          continue;
+          geocoded = {
+            ...extracted,
+            lat: config.mapCenterLat,
+            lng: config.mapCenterLng,
+          };
         }
 
         const stored = this.store.addIncident(geocoded);

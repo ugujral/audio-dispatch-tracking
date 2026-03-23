@@ -6,7 +6,7 @@ import { RawChunk } from "./types.js";
 import { config } from "../config.js";
 import { logger } from "../utils/logger.js";
 
-const CHUNK_DURATION = 30; // seconds — longer chunks give Whisper more context
+const CHUNK_DURATION = 10; // seconds
 const RECONNECT_DELAY = 30_000; // ms
 
 /**

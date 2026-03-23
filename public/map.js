@@ -110,11 +110,14 @@
 
     // Build popup using safe DOM construction
     var popupEl = document.createElement("div");
+    var rawText = (incident.rawTranscription || "")
+      .replace(/\[[\d:.]+\s*-->\s*[\d:.]+\]\s*/g, "")
+      .trim();
     var lines = [
       { label: "Incident", value: incident.incidentType },
       { label: "Location", value: incident.location },
-      { label: "Units", value: incident.units.join(", ") },
       { label: "Time", value: formatTime(incident.timestamp) },
+      { label: "Audio", value: rawText },
     ];
     lines.forEach(function (line, i) {
       var b = document.createElement("strong");
@@ -133,7 +136,6 @@
     var fields = [
       { cls: "incident-type", label: "Incident", value: incident.incidentType },
       { cls: "incident-location", label: "Location", value: incident.location },
-      { cls: "incident-units", label: "Units", value: incident.units.join(", ") },
       { cls: "incident-time", label: "Time", value: formatTime(incident.timestamp) },
     ];
     fields.forEach(function (f) {
