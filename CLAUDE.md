@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What This Project Does
 
-Real-time emergency dispatch tracker: captures Broadcastify radio streams → transcribes with Whisper → extracts structured incident data via Ollama (local LLM) → geocodes locations → displays on a live Leaflet map via SSE. Runs entirely locally with no paid APIs.
+Real-time emergency dispatch tracker: captures Broadcastify radio streams → transcribes with faster-whisper → extracts structured incident data via Ollama (local LLM) with conversation history → geocodes locations → displays on a live Leaflet map via SSE. Runs entirely locally with no paid APIs.
 
 ## Commands
 
@@ -19,45 +19,49 @@ Ollama must be running before starting: `ollama serve` (or `brew services start 
 
 ## External Dependencies
 
-Three system tools must be installed (not npm packages):
-- **ffmpeg** — captures and segments audio from the stream into 10-second WAV files
-- **whisper** CLI (OpenAI Whisper) — transcribes WAV files to text, invoked as a child process
-- **Ollama** — runs a local LLM (llama3.1:8b) for structured incident extraction via HTTP API on port 11434
+System tools (not npm packages):
+- **ffmpeg** — captures audio, segments into 10s WAV files, applies audio filters (highpass, lowpass, loudnorm)
+- **faster-whisper** — Python library for transcription (4x faster than OpenAI Whisper). Called via `scripts/transcribe.py` wrapper
+- **Ollama** — runs llama3.1:8b locally for structured incident extraction via HTTP API on port 11434
 
 ## Architecture
 
-The app is a single long-running Node process (`src/index.ts`) that runs two things concurrently:
-1. An Express web server serving a static frontend + REST/SSE APIs
-2. An async generator pipeline loop that continuously processes audio
+The app starts idle. When the user clicks play in the browser, the `PipelineController` starts the audio capture and processing pipeline. Clicking pause stops it.
 
-### Pipeline stages (sequential, in `src/index.ts` main loop)
+### Pipeline stages (in `src/pipeline/pipeline-controller.ts`)
 
-`captureAudioChunks` (async generator, yields WAV files via ffmpeg) → `transcribe` (Whisper CLI) → `extractIncident` (Ollama local LLM) → `geocodeIncident` (Nominatim/OpenStreetMap) → `IncidentStore.addIncident`
-
-Each stage returns `null` to skip non-actionable audio; the main loop `continue`s on null. Errors in a single chunk are caught and logged without stopping the pipeline.
+`captureAudioChunks` (async generator, yields WAV files via ffmpeg) → VAD silence detection (ffmpeg silencedetect) → `transcribe` (faster-whisper) → hallucination filter → `extractIncident` (Ollama with conversation history) → `geocodeIncident` (Nominatim or Google Maps) → `IncidentStore.addIncident`
 
 ### Key design patterns
 
-- **Ad skipping** (`src/pipeline/audio-capture.ts`): Broadcastify plays 15-30s of ads on each connection. The first N chunks are skipped and deleted (configurable via `AD_SKIP_SECONDS`, default 30). Applies on every reconnection.
-- **Ollama extraction uses JSON format mode** (`src/pipeline/extractor.ts`): Calls Ollama's `/api/chat` endpoint with `format: "json"`. The model returns `{"actionable": false}` for non-dispatch audio, or a full incident object.
-- **IncidentStore is an EventEmitter** (`src/store/incident-store.ts`): `addIncident` emits `"new-incident"`, which SSEManager listens to for broadcasting to connected clients.
-- **Audio capture uses polling** (`src/pipeline/audio-capture.ts`): ffmpeg writes segmented WAV files to a temp directory; the capture loop polls for new files every 2 seconds. Auto-reconnects on stream drops with a 30-second delay.
-- **Retry with exponential backoff** (`src/utils/retry.ts`): `withRetry(fn, maxRetries, baseDelayMs)` is used for Ollama calls and geocoding.
+- **Play/pause control** (`src/pipeline/pipeline-controller.ts`): `PipelineController` manages start/stop via `AbortController`. Frontend audio player play/pause events trigger `POST /api/stream/start` and `/api/stream/stop`.
+- **Conversation history**: The last 5 transcriptions are passed as context to Ollama, so dispatches split across chunks can still be extracted.
+- **Audio preprocessing** (`src/pipeline/audio-capture.ts`): ffmpeg applies `highpass=300Hz`, `lowpass=3000Hz`, and `loudnorm` filters to clean radio noise before writing chunks.
+- **VAD + hallucination filtering** (`src/pipeline/transcriber.ts`): ffmpeg `silencedetect` skips silent chunks before calling Whisper. Known hallucination phrases ("Thank you very much", etc.) are blocked.
+- **LAPD-specific extraction** (`src/pipeline/extractor.ts`): System prompt includes full LAPD phonetic alphabet, 50+ California Penal Codes, unit designators, division numbers, and operational codes.
+- **Ad skipping** (`src/pipeline/audio-capture.ts`): First N chunks skipped on each connection (configurable via `AD_SKIP_SECONDS`, default 30).
+- **Intersection geocoding** (`src/pipeline/geocoder.ts`): Falls back to geocoding each street separately with distance guard (rejects averages >10km apart). Appends "Street" suffix to bare names. Falls back to map center if all geocoding fails.
+- **Auto-fetch stream name** (`src/config.ts`): Extracts feed ID from Broadcastify URL and scrapes the feed name from the web player page.
+- **Incident store** (`src/store/incident-store.ts`): Capped at 1000 incidents, supports delete via API. EventEmitter broadcasts new/removed incidents to SSE clients.
 
 ### Frontend
 
-Vanilla JS + Leaflet map in `public/`. Fetches initial incidents via `GET /api/incidents`, then subscribes to `GET /api/incidents/stream` (SSE) for real-time updates. Map center/zoom configured server-side via `GET /api/config`.
+Vanilla JS + Leaflet map in `public/`. Audio player with play/pause controls the backend pipeline. Pipeline status indicator (Idle/Processing) pulses green when active. Incidents can be deleted from the sidebar. Stream name auto-displayed.
 
 ### API routes (in `src/server/app.ts`)
 
 - `GET /api/incidents` — all stored incidents
-- `GET /api/config` — map center/zoom settings
-- `GET /api/incidents/stream` — SSE stream of new incidents
+- `DELETE /api/incidents/:id` — delete an incident
+- `GET /api/config` — map center/zoom/stream settings
+- `POST /api/stream/start` — start pipeline
+- `POST /api/stream/stop` — stop pipeline
+- `GET /api/stream/status` — pipeline state
+- `GET /api/incidents/stream` — SSE stream (incidents + pipeline state + removals)
 
 ## Configuration
 
-All config is in `.env` (see `.env.example`). Only `STREAM_URL` is required. Ollama must be running locally. The `GEOCODE_CITY`/`GEOCODE_STATE` variables are appended to dispatch locations for geocoding disambiguation.
+All config in `.env` (see `.env.example`). Only `STREAM_URL` is required. Ollama must be running locally. Optional `GOOGLE_MAPS_API_KEY` for better geocoding. `GEOCODE_CITY`/`GEOCODE_STATE` appended to locations for disambiguation.
 
 ## TypeScript
 
-ESM modules (`"type": "module"` in package.json). All imports use `.js` extensions. Target ES2022, module resolution `nodenext`. Run via `tsx` (no separate build step needed for dev).
+ESM modules (`"type": "module"`). All imports use `.js` extensions. Target ES2022, module resolution `nodenext`. Run via `tsx`.

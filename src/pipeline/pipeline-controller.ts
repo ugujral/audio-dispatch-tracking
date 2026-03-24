@@ -7,12 +7,15 @@ import { IncidentStore } from "../store/incident-store.js";
 import { config } from "../config.js";
 import { logger } from "../utils/logger.js";
 
+const MAX_HISTORY = 5;
+
 export type PipelineState = "idle" | "processing";
 
 export class PipelineController extends EventEmitter {
   private state: PipelineState = "idle";
   private abortController: AbortController | null = null;
   private runPromise: Promise<void> | null = null;
+  private recentTranscriptions: string[] = [];
 
   constructor(private store: IncidentStore) {
     super();
@@ -25,6 +28,7 @@ export class PipelineController extends EventEmitter {
   async start(): Promise<void> {
     if (this.state === "processing") return;
     this.abortController = new AbortController();
+    this.recentTranscriptions = [];
     this.setState("processing");
     this.runPromise = this.run(this.abortController.signal);
     this.runPromise.catch((err) => {
@@ -56,12 +60,20 @@ export class PipelineController extends EventEmitter {
         const transcription = await transcribe(chunk);
         if (!transcription) continue;
 
-        const extracted = await extractIncident(transcription);
+        // Add to history buffer for context
+        this.recentTranscriptions.push(transcription.text);
+        if (this.recentTranscriptions.length > MAX_HISTORY) {
+          this.recentTranscriptions.shift();
+        }
+
+        const extracted = await extractIncident(
+          transcription,
+          this.recentTranscriptions.slice(0, -1) // pass prior chunks as context
+        );
         if (!extracted) continue;
 
         let geocoded = await geocodeIncident(extracted);
         if (!geocoded) {
-          // Use map center as fallback so the incident still appears in the sidebar
           logger.warn(
             `Could not geocode "${extracted.location}" — using map center as fallback`
           );

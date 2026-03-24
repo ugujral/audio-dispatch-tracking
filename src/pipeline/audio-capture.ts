@@ -6,7 +6,7 @@ import { RawChunk } from "./types.js";
 import { config } from "../config.js";
 import { logger } from "../utils/logger.js";
 
-const CHUNK_DURATION = 10; // seconds
+const CHUNK_DURATION = config.chunkDuration;
 const RECONNECT_DELAY = 30_000; // ms
 
 /**
@@ -46,6 +46,7 @@ async function* captureSession(
 
   const ffmpeg = spawn("ffmpeg", [
     "-i", streamUrl,
+    "-af", "highpass=f=300,lowpass=f=3000,loudnorm",  // filter radio noise + normalize volume
     "-f", "segment",
     "-segment_time", String(CHUNK_DURATION),
     "-ac", "1",           // mono

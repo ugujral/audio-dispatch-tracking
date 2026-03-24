@@ -64,7 +64,6 @@ async function main() {
   console.log("\n--- Extracted Incident ---");
   console.log(`  Type:     ${extracted.incidentType}`);
   console.log(`  Location: ${extracted.location}`);
-  console.log(`  Units:    ${extracted.units.join(", ")}`);
   console.log(`  Time:     ${extracted.timestamp}`);
 
   // Geocode

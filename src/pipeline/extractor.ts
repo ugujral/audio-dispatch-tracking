@@ -122,12 +122,12 @@ COMMON LAPD ABBREVIATIONS:
 "cross of X and Y" or "X/Y" = intersection of two streets
 
 IMPORTANT RULES:
-- Extract any incident where you can identify BOTH a location AND an incident type. This includes new dispatches, active incidents being discussed, and ongoing situations.
-- Do NOT extract: unit clearances (Code 4, 10-8, "clear"), acknowledgments ("copy", "10-4"), radio checks, or unintelligible audio.
-- Always use full names, never abbreviations. For example: "Motor Vehicle Collision" not "MVC", "Burglary" not "459", "Robbery" not "211", "Battery" not "242".
-- The location should be a street address, intersection, or well-known landmark/building. Include whatever address details you can hear, even if partial (e.g., "6262 Van Nuys Blvd" or "Woodman Avenue"). A partial address is better than no incident.
-- The incidentType MUST be a specific type (e.g., "Burglary", "Traffic Collision", "Domestic Dispute", "Battery", "Welfare Check"). Never use "Unknown" or "Miscellaneous".
-- For timestamp: always use "now".
+- Extract any incident where you can identify BOTH a location AND an incident type. This includes new dispatches, active incidents, ongoing situations, and incidents mentioned alongside clearances or status updates.
+- Only skip transcriptions that are PURELY radio chatter with no incident info: simple acknowledgments ("copy", "10-4"), radio checks, or unintelligible audio. Do NOT skip clearances or status updates that mention an incident type and location (e.g., "Code 4 on 417 at Daisy and Anna" contains a real incident).
+- Use full names for crime types ("Robbery" not "211", "Burglary" not "459", "Battery" not "242"). Radio protocol codes like "Code 3" and unit designators like "9-Adam-45" are fine as-is.
+- The location must include at minimum a street name with a cross street, block number, or address number. Examples of acceptable: "6262 Van Nuys Blvd", "Devonshire and Etiwanda", "Van Nuys Blvd near Ventura". NOT acceptable: a single street name like "Washington" or a vague description like "downtown".
+- For incidentType: use a specific type when possible (e.g., "Burglary", "Traffic Collision", "Domestic Violence"). If the exact type is unclear but an incident clearly occurred, use "Dispatch Call" or "Investigation". Never use "Unknown", "Miscellaneous", or long descriptions.
+- For timestamp: always output exactly the string "now". Do not attempt to parse any time from the audio.
 
 You must respond with JSON. If the transcription contains an incident with a clear location and type, respond with:
 {"actionable": true, "location": "...", "incidentType": "...", "timestamp": "now"}
@@ -141,11 +141,12 @@ Otherwise respond with:
  * Returns null if no actionable dispatch was found.
  */
 export async function extractIncident(
-  transcription: Transcription
+  transcription: Transcription,
+  priorContext: string[] = []
 ): Promise<ExtractedIncident | null> {
   try {
     const result = await withRetry(
-      () => callOllama(transcription.text),
+      () => callOllama(transcription.text, priorContext),
       3,
       2000
     );
@@ -156,7 +157,10 @@ export async function extractIncident(
   }
 }
 
-async function callOllama(text: string): Promise<ExtractedIncident | null> {
+async function callOllama(
+  text: string,
+  priorContext: string[]
+): Promise<ExtractedIncident | null> {
   const response = await fetch(`${config.ollamaUrl}/api/chat`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -165,6 +169,18 @@ async function callOllama(text: string): Promise<ExtractedIncident | null> {
       model: config.ollamaModel,
       messages: [
         { role: "system", content: SYSTEM_PROMPT },
+        ...(priorContext.length > 0
+          ? [
+              {
+                role: "user" as const,
+                content: `Recent radio traffic for context (do NOT extract from these, only use as context):\n${priorContext.map((t, i) => `${i + 1}. ${t}`).join("\n")}`,
+              },
+              {
+                role: "assistant" as const,
+                content: "Understood. I'll use this context when analyzing the next transcription.",
+              },
+            ]
+          : []),
         {
           role: "user",
           content: `Extract the dispatch incident from this radio transcription.\n\nTranscription: "${text}"`,

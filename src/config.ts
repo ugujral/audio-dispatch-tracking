@@ -49,8 +49,9 @@ export const config = {
   streamName: process.env.STREAM_NAME || "",
   ollamaUrl: process.env.OLLAMA_URL || "http://localhost:11434",
   ollamaModel: process.env.OLLAMA_MODEL || "llama3.1:8b",
-  whisperModel: process.env.WHISPER_MODEL || "base.en",
-  whisperPath: process.env.WHISPER_PATH || "whisper",
+  whisperModel: process.env.WHISPER_MODEL || "medium.en",
+  whisperPath: process.env.WHISPER_PATH || "scripts/transcribe.py",
+  googleMapsApiKey: process.env.GOOGLE_MAPS_API_KEY || "",
   geocodeCity: process.env.GEOCODE_CITY || "",
   geocodeState: process.env.GEOCODE_STATE || "",
   geocodeCountry: process.env.GEOCODE_COUNTRY || "US",
@@ -59,4 +60,5 @@ export const config = {
   mapCenterLng: parseFloat(process.env.MAP_CENTER_LNG || "-118.2437"),
   mapZoom: parseInt(process.env.MAP_ZOOM || "12", 10),
   adSkipSeconds: parseInt(process.env.AD_SKIP_SECONDS || "30", 10),
+  chunkDuration: parseInt(process.env.CHUNK_DURATION || "15", 10),
 };
