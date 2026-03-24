@@ -56,14 +56,30 @@ export async function fetchStreamInfo(streamUrl: string): Promise<StreamInfo | n
     const descMatch = html.match(/<meta\s+name="KEYWORDS"\s+content="([^"]+)"/i);
     const keywords = descMatch ? descMatch[1] : "";
 
-    // Try to geocode the first word(s) as a city — feed names usually start with city/county
-    const cityGuess = name
-      .replace(/\b(police|fire|ems|dispatch|department|county|metropolitan|city of|sheriff|pd)\b/gi, "")
-      .replace(/[-–—]/g, " ")
-      .replace(/\s+/g, " ")
-      .trim()
-      .split(/\s*,\s*/)[0]
-      .trim();
+    // Try to geocode the city — feed names usually start with city/county
+    // Known agency abbreviations that map to cities
+    const agencyMap: Record<string, string> = {
+      "lapd": "Los Angeles",
+      "nypd": "New York",
+      "cpd": "Chicago",
+      "sfpd": "San Francisco",
+      "lafd": "Los Angeles",
+      "fdny": "New York",
+    };
+
+    // Check if name starts with a known agency abbreviation
+    const firstWord = name.split(/[\s-]/)[0].toLowerCase();
+    let cityGuess = agencyMap[firstWord] || "";
+
+    if (!cityGuess) {
+      cityGuess = name
+        .replace(/\b(police|fire|ems|dispatch|department|county|metropolitan|city of|sheriff|pd|bureau|division|district|north|south|east|west|central|valley)\b/gi, "")
+        .replace(/[-–—]/g, " ")
+        .replace(/\s+/g, " ")
+        .trim()
+        .split(/\s*,\s*/)[0]
+        .trim();
+    }
 
     if (!cityGuess) return { name, city: "", state: "", lat: 0, lng: 0 };
 

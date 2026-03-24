@@ -173,11 +173,11 @@ async function callOllama(
           ? [
               {
                 role: "user" as const,
-                content: `Recent radio traffic for context (do NOT extract from these, only use as context):\n${priorContext.map((t, i) => `${i + 1}. ${t}`).join("\n")}`,
+                content: `Recent radio traffic. If the current transcription is missing a location or incident type, you MAY combine information from these previous chunks to fill in the gap. For example, if a previous chunk mentioned "459 burglary" and the current chunk says "at Devonshire and Etiwanda", combine them into one incident.\n\n${priorContext.map((t, i) => `${i + 1}. ${t}`).join("\n")}`,
               },
               {
                 role: "assistant" as const,
-                content: "Understood. I'll use this context when analyzing the next transcription.",
+                content: "I'll use this context and combine information across chunks if needed.",
               },
             ]
           : []),

@@ -4,9 +4,11 @@ import { config } from "../config.js";
 import { withRetry } from "../utils/retry.js";
 import { logger } from "../utils/logger.js";
 
-const geocoder = NodeGeocoder({
-  provider: "openstreetmap",
-});
+const geocoder = NodeGeocoder(
+  config.googleMapsApiKey
+    ? { provider: "google", apiKey: config.googleMapsApiKey }
+    : { provider: "openstreetmap" }
+);
 
 /**
  * Geocodes the incident location using Nominatim (OpenStreetMap).
