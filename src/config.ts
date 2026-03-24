@@ -24,9 +24,21 @@ function extractFeedId(streamUrl: string): string | null {
  * Fetches the stream name from Broadcastify's web player page title.
  * Returns empty string if fetch fails or URL is not a Broadcastify feed.
  */
-export async function fetchStreamName(streamUrl: string): Promise<string> {
+export interface StreamInfo {
+  name: string;
+  city: string;
+  state: string;
+  lat: number;
+  lng: number;
+}
+
+/**
+ * Fetches stream name from Broadcastify and auto-detects the city/state
+ * by geocoding the feed name. Returns all info needed to configure the app.
+ */
+export async function fetchStreamInfo(streamUrl: string): Promise<StreamInfo | null> {
   const feedId = extractFeedId(streamUrl);
-  if (!feedId) return "";
+  if (!feedId) return null;
 
   try {
     const resp = await fetch(`https://www.broadcastify.com/webPlayer/${feedId}`, {
@@ -35,13 +47,60 @@ export async function fetchStreamName(streamUrl: string): Promise<string> {
     });
     const html = await resp.text();
     const match = html.match(/<title>\s*(.+?)\s*<\/title>/i);
-    if (match) {
-      return match[1].replace(/\s*Live Audio Feed\s*$/i, "").trim();
+    if (!match) return null;
+
+    const name = match[1].replace(/\s*Live Audio Feed\s*$/i, "").trim();
+
+    // Extract city name from the feed title (e.g., "Indianapolis Metropolitan Police" → "Indianapolis")
+    // Also try the meta description which often has more context
+    const descMatch = html.match(/<meta\s+name="KEYWORDS"\s+content="([^"]+)"/i);
+    const keywords = descMatch ? descMatch[1] : "";
+
+    // Try to geocode the first word(s) as a city — feed names usually start with city/county
+    const cityGuess = name
+      .replace(/\b(police|fire|ems|dispatch|department|county|metropolitan|city of|sheriff|pd)\b/gi, "")
+      .replace(/[-–—]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim()
+      .split(/\s*,\s*/)[0]
+      .trim();
+
+    if (!cityGuess) return { name, city: "", state: "", lat: 0, lng: 0 };
+
+    // Geocode the city to get coordinates
+    const geoResp = await fetch(
+      `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(cityGuess + ", US")}&format=json&limit=1`,
+      {
+        headers: { "User-Agent": "DispatchTracker/1.0" },
+        signal: AbortSignal.timeout(10_000),
+      }
+    );
+    const geoResults = await geoResp.json() as Array<{
+      lat: string;
+      lon: string;
+      display_name: string;
+    }>;
+
+    if (geoResults.length > 0) {
+      const result = geoResults[0];
+      // Parse city and state from display_name like "Indianapolis, Marion County, Indiana, US"
+      const parts = result.display_name.split(", ");
+      const city = parts[0] || cityGuess;
+      const state = parts.length >= 3 ? parts[parts.length - 2] : "";
+
+      return {
+        name,
+        city,
+        state,
+        lat: parseFloat(result.lat),
+        lng: parseFloat(result.lon),
+      };
     }
+
+    return { name, city: cityGuess, state: "", lat: 0, lng: 0 };
   } catch {
-    // ignore — name is optional
+    return null;
   }
-  return "";
 }
 
 export const config = {

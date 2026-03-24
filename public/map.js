@@ -53,6 +53,7 @@
   const TYPE_COLORS = {
     fire: "#e94560",
     medical: "#4895ef",
+    police: "#a855f7",
     traffic: "#f9c74f",
     alarm: "#f8961e",
     other: "#43aa8b",
@@ -60,12 +61,40 @@
 
   function classifyType(type) {
     const t = type.toLowerCase();
-    if (t.includes("fire") || t.includes("smoke") || t.includes("burn")) return "fire";
+    if (t.includes("fire") || t.includes("smoke") || t.includes("burn") || t.includes("arson")) return "fire";
     if (t.includes("medical") || t.includes("ems") || t.includes("overdose") || t.includes("cardiac") || t.includes("injury")) return "medical";
-    if (t.includes("vehicle") || t.includes("mvc") || t.includes("mva") || t.includes("traffic") || t.includes("accident")) return "traffic";
+    if (t.includes("vehicle") || t.includes("mvc") || t.includes("mva") || t.includes("traffic") || t.includes("accident") || t.includes("collision")) return "traffic";
     if (t.includes("alarm") || t.includes("afa")) return "alarm";
+    if (t.includes("robbery") || t.includes("burglary") || t.includes("theft") || t.includes("assault") || t.includes("battery") || t.includes("domestic") || t.includes("disturbance") || t.includes("vandalism") || t.includes("weapon") || t.includes("gun") || t.includes("shooting") || t.includes("homicide") || t.includes("carjacking") || t.includes("kidnap") || t.includes("dispatch call") || t.includes("investigation") || t.includes("welfare") || t.includes("trespass") || t.includes("pursuit") || t.includes("suspect")) return "police";
     return "other";
   }
+
+  // Map legend
+  var legend = L.control({ position: "bottomleft" });
+  legend.onAdd = function () {
+    var div = document.createElement("div");
+    div.className = "map-legend";
+    var categories = [
+      { color: TYPE_COLORS.fire, label: "Fire" },
+      { color: TYPE_COLORS.medical, label: "Medical" },
+      { color: TYPE_COLORS.police, label: "Police" },
+      { color: TYPE_COLORS.traffic, label: "Traffic" },
+      { color: TYPE_COLORS.alarm, label: "Alarm" },
+      { color: TYPE_COLORS.other, label: "Other" },
+    ];
+    categories.forEach(function (c) {
+      var row = document.createElement("div");
+      row.className = "legend-item";
+      var dot = document.createElement("span");
+      dot.className = "legend-dot";
+      dot.style.background = c.color;
+      row.appendChild(dot);
+      row.appendChild(document.createTextNode(c.label));
+      div.appendChild(row);
+    });
+    return div;
+  };
+  legend.addTo(map);
 
   function createIcon(typeClass) {
     const color = TYPE_COLORS[typeClass] || TYPE_COLORS.other;

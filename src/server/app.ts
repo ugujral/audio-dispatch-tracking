@@ -4,7 +4,7 @@ import { fileURLToPath } from "url";
 import { IncidentStore } from "../store/incident-store.js";
 import { PipelineController } from "../pipeline/pipeline-controller.js";
 import { SSEManager } from "./sse.js";
-import { config, fetchStreamName } from "../config.js";
+import { config, fetchStreamInfo } from "../config.js";
 import { logger } from "../utils/logger.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -16,15 +16,27 @@ export function startServer(
   const app = express();
   const sse = new SSEManager(store, pipeline);
 
-  // Auto-fetch stream name from Broadcastify if not set
-  if (!config.streamName) {
-    fetchStreamName(config.streamUrl).then((name) => {
-      if (name) {
-        config.streamName = name;
-        logger.info(`Stream name: ${name}`);
-      }
-    });
-  }
+  // Auto-detect stream name, city, state, and map center from Broadcastify
+  fetchStreamInfo(config.streamUrl).then((info) => {
+    if (!info) return;
+    if (!config.streamName && info.name) {
+      config.streamName = info.name;
+      logger.info(`Stream: ${info.name}`);
+    }
+    if (!config.geocodeCity && info.city) {
+      config.geocodeCity = info.city;
+      logger.info(`Auto-detected city: ${info.city}`);
+    }
+    if (!config.geocodeState && info.state) {
+      config.geocodeState = info.state;
+      logger.info(`Auto-detected state: ${info.state}`);
+    }
+    if (info.lat && info.lng) {
+      config.mapCenterLat = info.lat;
+      config.mapCenterLng = info.lng;
+      logger.info(`Auto-centered map: (${info.lat}, ${info.lng})`);
+    }
+  });
 
   // Serve static frontend files
   app.use(express.static(path.join(__dirname, "../../public")));
